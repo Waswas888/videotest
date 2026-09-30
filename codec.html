@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Шифратор ссылок для IPTV</title>
+    <!-- Подключаем библиотеку шифрования CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #121212; color: #fff; }
+        input, textarea { width: 100%; padding: 10px; margin: 10px 0; background: #1e1e1e; color: #fff; border: 1px solid #333; border-radius: 4px; box-sizing: border-box; }
+        button { background: #0070f3; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-weight: bold; margin-right: 10px; }
+        button:hover { background: #0051a2; }
+        .box { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <h2>Шифрование ссылок для Vercel</h2>
+
+    <div class="box">
+        <label>Секретный ключ (должен совпадать с Vercel):</label>
+        <input type="text" id="secretKey" value="MySuperSecretKey2026_ChangeMe3222">
+    </div>
+
+    <div class="box">
+        <label>Оригинальный URL:</label>
+        <textarea id="rawUrl" rows="3" placeholder="http://iptv.prosto.tv:7000/..."></textarea>
+        <button onclick="encryptLink()">Зашифровать в ссылку для плейлиста</button>
+    </div>
+
+    <div class="box">
+        <label>Результат:</label>
+        <textarea id="result" rows="3" readonly></textarea>
+    </div>
+
+<script>
+function encryptLink() {
+    const keyStr = document.getElementById('secretKey').value;
+    const url = document.getElementById('rawUrl').value.trim();
+    
+    if (!url) {
+        alert('Введите URL!');
+        return;
+    }
+
+    try {
+        // Генерация случайного вектора инициализации (IV) как в Node.js
+        const iv = CryptoJS.lib.WordArray.random(16);
+        const key = CryptoJS.enc.Utf8.parse(keyStr.padEnd(32, '0').slice(0, 32));
+        
+        const encrypted = CryptoJS.AES.encrypt(url, key, {
+            iv: iv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7
+        });
+
+        // Объединяем IV и зашифрованный текст в единый буфер и кодируем в base64url
+        const combined = iv.concat(encrypted.ciphertext);
+        const base64Str = CryptoJS.enc.Base64.stringify(combined)
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+
+        const finalLink = `https://adss-video.vercel.app/video?data=${base64Str}`;
+        document.getElementById('result').value = finalLink;
+    } catch (e) {
+        alert('Ошибка шифрования: ' + e.message);
+    }
+}
+</script>
+
+</body>
+</html>
