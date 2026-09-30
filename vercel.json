@@ -1,16 +1,8 @@
- {
-
+{
   "routes": [
-
     {
-
       "src": "/(.*)",
-
-      "dest": "https://kinostream-index.hf.space/$1"
-
+      "dest": "https://stream-tv-digital.hf.space/$1"
     }
-
   ]
-
-} 
-
+}
