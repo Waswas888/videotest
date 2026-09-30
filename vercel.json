@@ -6,7 +6,7 @@
 
       "src": "/(.*)",
 
-      "dest": "https://stream-tv-digital.hf.space/$1"
+      "dest": "https://kinostream-denzel.hf.space/$1"
 
     }
 
