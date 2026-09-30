@@ -6,7 +6,7 @@
 
       "src": "/(.*)",
 
-      "dest": "https://kinostream-denzel.hf.space/$1"
+      "dest": "https://kinostream-index.hf.space/$1"
 
     }
 
