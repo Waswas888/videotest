@@ -1,8 +1,16 @@
-{
+ {
+
   "routes": [
+
     {
+
       "src": "/(.*)",
-      "dest": "https://stream-tv-digital.hf.space/proxy/$1"
+
+      "dest": "https://stream-tv-digital.hf.space/$1"
+
     }
+
   ]
-}
+
+} 
+
