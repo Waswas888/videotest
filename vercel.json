@@ -1,6 +1,13 @@
 {
   "routes": [
     {
+      "src": "/proxy",
+      "dest": "https://stream-tv-digital.hf.space/proxy",
+      "headers": {
+        "content-type": "application/vnd.apple.mpegurl"
+      }
+    },
+    {
       "src": "/(.*)",
       "dest": "https://stream-tv-digital.hf.space/$1"
     }
