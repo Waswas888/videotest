@@ -175,4 +175,4 @@ def proxy_stream(index: int, cmd: str = "", key: str = ""):
     if not stream_url:
         return Response("URL yaratib bo'lmadi", status_code=500)
 
-    return RedirectResponse(url=stream_url, status_2=302)
+    return RedirectResponse(url=stream_url, status_code=302)
