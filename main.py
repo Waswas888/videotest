@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 import requests
 
 # ==============================================================================
-# НАСТРОЙКИ ПОДКЛЮЧЕНИЯ И УСТРОЙСТВА (ИЗ СКРИНШОТА)
+# НАСТРОЙКИ ПОДКЛЮЧЕНИЯ И УСТРОЙСТВА
 # ==============================================================================
 PORTAL_BASE = "http://91.215.188.161"
 PORTAL_URL = f"{PORTAL_BASE}/stalker_portal/server/load.php"
@@ -174,39 +174,72 @@ def fetch_channels_data(session):
 
     channels = []
     seen_cmds = set()
+
+    # 1. Общий список каналов
     try:
         channels_url = f"{PORTAL_URL}?type=itv&action=get_all_channels&JsHttpRequest=1-xml"
         channels_res = session.get(channels_url, timeout=10).json()
         data = channels_res.get("js", {}).get("data", [])
         if isinstance(data, list):
-            channels = data
+            for ch in data:
+                cmd = ch.get("cmd", "")
+                if cmd and cmd not in seen_cmds:
+                    seen_cmds.add(cmd)
+                    channels.append(ch)
     except Exception:
         pass
 
-    if not channels:
-        try:
-            list_url = f"{PORTAL_URL}?type=itv&action=get_ordered_list&genre=*&sortby=number&order=asc&hd=0&fav=0&not_my_genres=0&JsHttpRequest=1-xml"
-            res = session.get(list_url, timeout=10).json()
-            data = res.get("js", {}).get("data", [])
-            if not data and isinstance(res.get("js"), list):
-                data = res.get("js", [])
-            if isinstance(data, list):
-                channels = data
-        except Exception:
-            pass
+    # 2. Постраничный обход по всем жанрам (гарантия сбора всех каналов)
+    if genres_map:
+        for gid in genres_map.keys():
+            page = 1
+            while True:
+                sub_url = (
+                    f"{PORTAL_URL}?type=itv&action=get_ordered_list"
+                    f"&genre={gid}&sortby=number&order=asc&hd=0&fav=0&not_my_genres=0"
+                    f"&p={page}&JsHttpRequest=1-xml"
+                )
+                try:
+                    sub_resp = session.get(sub_url, timeout=5).json()
+                    js_content = sub_resp.get("js", {})
+                    
+                    if isinstance(js_content, dict):
+                        sub_data = js_content.get("data", [])
+                    elif isinstance(js_content, list):
+                        sub_data = js_content
+                    else:
+                        sub_data = []
 
-    try:
-        if genres_map:
-            for gid in genres_map.keys():
-                sub_url = f"{PORTAL_URL}?type=itv&action=get_ordered_list&genre={gid}&sortby=number&order=asc&hd=0&fav=0&not_my_genres=0&JsHttpRequest=1-xml"
-                sub_resp = session.get(sub_url, timeout=5).json()
-                sub_data = sub_resp.get("js", {}).get("data", [])
-                if isinstance(sub_data, list):
+                    if not sub_data:
+                        break
+
+                    added_in_page = 0
                     for ch in sub_data:
                         cmd = ch.get("cmd", "")
                         if cmd and cmd not in seen_cmds:
                             seen_cmds.add(cmd)
                             channels.append(ch)
+                            added_in_page += 1
+
+                    if len(sub_data) < 10 or added_in_page == 0 or page > 50:
+                        break
+                    page += 1
+                except Exception:
+                    break
+
+    # 3. Контрольный запрос без фильтра жанров
+    try:
+        list_url = f"{PORTAL_URL}?type=itv&action=get_ordered_list&genre=*&sortby=number&order=asc&hd=0&fav=0&not_my_genres=0&JsHttpRequest=1-xml"
+        res = session.get(list_url, timeout=10).json()
+        js_data = res.get("js", {})
+        data = js_data.get("data", []) if isinstance(js_data, dict) else (js_data if isinstance(js_data, list) else [])
+        
+        if isinstance(data, list):
+            for ch in data:
+                cmd = ch.get("cmd", "")
+                if cmd and cmd not in seen_cmds:
+                    seen_cmds.add(cmd)
+                    channels.append(ch)
     except Exception:
         pass
 
