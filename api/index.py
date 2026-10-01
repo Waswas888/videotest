@@ -10,7 +10,6 @@ import requests
 PORTAL_URL = "http://app.ttt5.me/stalker_portal/server/load.php"
 PORTAL_BASE = "http://app.ttt5.me"
 
-# Актуальные данные из рабочего профиля ( MAG250 / MAG254 )
 MAC_BASE = "00:1A:79:67:D2:D4"
 SN_BASE = "E64E3F8B8C092"
 UID_BASE = "D19D40486081779F90A66F60EB9836A1D2A63ED493961445338D76A01F31F6D4"
@@ -310,27 +309,40 @@ def proxy_stream(index: int, key: str = ""):
     except Exception as e:
         return Response(f"Kanal topilmadi: {e}", status_code=404)
 
+    # Пробуем получить ссылку, если сессия упала — пересоздаем её принудительно
     session = get_session()
     stream_url = ""
     
-    try:
-        clean_cmd = cmd
-        for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
-            if clean_cmd.startswith(prefix):
-                clean_cmd = clean_cmd[len(prefix):].strip()
-                
-        link_url = f"{PORTAL_URL}?type=itv&action=create_link&cmd={requests.utils.quote(clean_cmd)}&JsHttpRequest=1-xml"
-        link_res = session.get(link_url, timeout=10).json()
-        
-        stream_cmd = link_res.get("js", {}).get("cmd")
-        if stream_cmd:
-            stream_url = stream_cmd
+    for attempt in range(2):
+        try:
+            clean_cmd = cmd
             for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
-                if stream_url.startswith(prefix):
-                    stream_url = stream_url[len(prefix):].strip()
-    except Exception as e:
-        print(f"Create link xatolik (stream): {e}")
+                if clean_cmd.startswith(prefix):
+                    clean_cmd = clean_cmd[len(prefix):].strip()
+                    
+            link_url = f"{PORTAL_URL}?type=itv&action=create_link&cmd={requests.utils.quote(clean_cmd)}&JsHttpRequest=1-xml"
+            resp = session.get(link_url, timeout=10)
+            
+            # Проверяем, что ответ не пустой и содержит JSON
+            if not resp.text.strip():
+                raise ValueError("Bo'sh javob keldi")
+                
+            link_res = resp.json()
+            stream_cmd = link_res.get("js", {}).get("cmd")
+            if stream_cmd:
+                stream_url = stream_cmd
+                for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
+                    if stream_url.startswith(prefix):
+                        stream_url = stream_url[len(prefix):].strip()
+                break
+        except Exception as e:
+            print(f"Create link xatolik (urinish {attempt+1}): {e}")
+            if attempt == 0:
+                # Если первая попытка провалилась, принудительно обновляем сессию (токен)
+                session = get_session(force_new=True)
+                time.sleep(0.5)
 
+    # Фолбэк, если через create_link получить не удалось
     if not stream_url or stream_url.startswith("/ch/") or ("://" not in stream_url and not stream_url.startswith("/")):
         fallback_url = cmd
         for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
