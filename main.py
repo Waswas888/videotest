@@ -297,13 +297,13 @@ def download_m3u8(request: Request, key: str = ""):
 
     return PlainTextResponse("\n".join(m3u_lines), headers=headers)
 
-# Универсальный эндпоинт по прямой команде (не зависит от индексов)
 @app.get("/play")
 def play_stream(cmd: str, request: Request, key: str = ""):
     if is_ip_banned(request) or key != SECRET_KEY:
         return RedirectResponse(url=STUB_VIDEO_URL, status_code=302)
 
-    session = get_session()
+    # При каждом клике на канал принудительно освежаем сессию и получаем актуальный токен
+    session = get_session(force_new=True)
     stream_url = ""    
 
     for attempt in range(2):
@@ -317,6 +317,7 @@ def play_stream(cmd: str, request: Request, key: str = ""):
             resp = session.get(link_url, timeout=10)
             link_res = resp.json()
             stream_cmd = link_res.get("js", {}).get("cmd")
+            
             if stream_cmd:
                 stream_url = stream_cmd
                 for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
@@ -325,9 +326,15 @@ def play_stream(cmd: str, request: Request, key: str = ""):
                 break
         except Exception:
             if attempt == 0:
-                session = get_session(force_new=True)
                 time.sleep(0.5)
 
+    # Исправляем внутренние пути, если портал вернул их в усеченном виде
+    if stream_url.startswith("http:///"):
+        stream_url = stream_url.replace("http:///", f"{PORTAL_BASE}/")
+    elif stream_url.startswith("/"):
+        stream_url = f"{PORTAL_BASE}{stream_url}"
+
+    # Если портал ничего не вернул, пробуем очистить оригинальную команду
     if not stream_url or "://" not in stream_url:
         fallback_url = cmd
         for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
@@ -336,9 +343,7 @@ def play_stream(cmd: str, request: Request, key: str = ""):
         if "://" in fallback_url:
             stream_url = fallback_url
 
-    if stream_url.startswith("/"):
-        stream_url = f"{PORTAL_BASE}{stream_url}"
-
+    # Добавляем СВЕЖИЙ токен сессии к ссылке медиасервера
     if stream_url and "token=" not in stream_url:
         session_token = session.cookies.get("token")
         if session_token:
