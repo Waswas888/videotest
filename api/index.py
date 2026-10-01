@@ -16,8 +16,7 @@ SN_BASE = "E64E3F8B8C092"
 UID_BASE = "D19D40486081779F90A66F60EB9836A1D2A63ED493961445338D76A01F31F6D4"
 DEVICE_ID = "20FB21AA77D58B6DC9200101EED68B82C4350765274BC3373EA9758DC8F3EA9E"
 
-BASE_PROXY_URL = "https://blacktulipstav.onrender.com"
-SECRET_KEY = "TvZaTak"
+SECRET_KEY = "000"
 TELEGRAM_GROUP_URL = "https://t.me/+2lWVU6CKQsVkMWRi"  
 
 app = FastAPI()
@@ -239,9 +238,11 @@ def health_check():
     return {"status": "ok"}
 
 @app.get("/playlist.json")
-def download_json(key: str = ""):
+def download_json(request: Request, key: str = ""):
     if key != SECRET_KEY:
         return [{"name": "Reklama / Xatolik", "group": "Stub", "logo": "", "url": "https://github.com/brawltop8599-boop/ads-stub/raw/refs/heads/main/v.mp4"}]
+
+    base_url = str(request.base_url).rstrip('/')
 
     if os.path.exists("playlist.json"):
         with open("playlist.json", "r", encoding="utf-8") as f:
@@ -252,15 +253,16 @@ def download_json(key: str = ""):
                 "name": ch["name"],
                 "group": ch.get("group", "Umumiy"),
                 "logo": ch.get("logo", ""),
-                "url": f"{BASE_PROXY_URL}/ch/{index}?key={SECRET_KEY}"
+                "url": f"{base_url}/ch/{index}?key={SECRET_KEY}"
             })
         return result
     return JSONResponse(content={"error": "Hali playlist tayyor emas!"}, status_code=404)
 
 @app.get("/pl.m3u8", response_class=PlainTextResponse)
 @app.get("/playlist.m3u8", response_class=PlainTextResponse)
-def download_m3u8(key: str = ""):
+def download_m3u8(request: Request, key: str = ""):
     headers = {"Content-Disposition": "attachment; filename=playlist.m3u8"}
+    base_url = str(request.base_url).rstrip('/')
 
     if key != SECRET_KEY:
         content = (
@@ -283,7 +285,7 @@ def download_m3u8(key: str = ""):
     for index, ch in enumerate(channels):
         name = ch.get("name", "Kanal")
         group = ch.get("group", "Umumiy")
-        stream_link = f"{BASE_PROXY_URL}/ch/{index}?key={SECRET_KEY}"
+        stream_link = f"{base_url}/ch/{index}?key={SECRET_KEY}"
         
         m3u_line = f"#EXTINF:-1 tvg-name=\"{name}\" group-title=\"{group}\",{name}"
         m3u_lines.append(m3u_line)
