@@ -302,55 +302,72 @@ def play_stream(cmd: str, request: Request, key: str = ""):
     if is_ip_banned(request) or key != SECRET_KEY:
         return RedirectResponse(url=STUB_VIDEO_URL, status_code=302)
 
-    # При каждом клике на канал принудительно освежаем сессию и получаем актуальный токен
     session = get_session(force_new=True)
     stream_url = ""    
 
-    for attempt in range(2):
-        try:
-            clean_cmd = cmd
-            for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
-                if clean_cmd.startswith(prefix):
-                    clean_cmd = clean_cmd[len(prefix):].strip()
-                    
-            link_url = f"{PORTAL_URL}?type=itv&action=create_link&cmd={requests.utils.quote(clean_cmd)}&JsHttpRequest=1-xml"
-            resp = session.get(link_url, timeout=10)
-            link_res = resp.json()
-            stream_cmd = link_res.get("js", {}).get("cmd")
-            
-            if stream_cmd:
-                stream_url = stream_cmd
-                for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
-                    if stream_url.startswith(prefix):
-                        stream_url = stream_url[len(prefix):].strip()
-                break
-        except Exception:
-            if attempt == 0:
-                time.sleep(0.5)
+    # Очищаем префиксы из команды
+    clean_cmd = cmd
+    for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
+        if clean_cmd.startswith(prefix):
+            clean_cmd = clean_cmd[len(prefix):].strip()
 
-    # Исправляем внутренние пути, если портал вернул их в усеченном виде
+    # Извлекаем числовой ID из виртуальных путей типа http:///ch/1277
+    channel_id = ""
+    if "/ch/" in clean_cmd:
+        parts = clean_cmd.split("/ch/")
+        if len(parts) > 1:
+            channel_id = parts[-1].strip()
+
+    # Формируем список вариантов для запроса к create_link (порталы бывают капризными к формату)
+    cmds_to_try = [clean_cmd]
+    if channel_id:
+        cmds_to_try.insert(0, channel_id)  # Пробуем чистый ID в первую очередь
+        cmds_to_try.append(f"ch:{channel_id}")
+        cmds_to_try.append(f"http:///ch/{channel_id}")
+
+    # Перебираем варианты, пока портал не отдаст реальный адрес потока
+    for test_cmd in cmds_to_try:
+        for attempt in range(2):
+            try:
+                link_url = f"{PORTAL_URL}?type=itv&action=create_link&cmd={requests.utils.quote(test_cmd)}&JsHttpRequest=1-xml"
+                resp = session.get(link_url, timeout=10)
+                link_res = resp.json()
+                stream_cmd = link_res.get("js", {}).get("cmd")
+                
+                if stream_cmd:
+                    stream_url = stream_cmd
+                    for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
+                        if stream_url.startswith(prefix):
+                            stream_url = stream_url[len(prefix):].strip()
+                    break
+            except Exception:
+                if attempt == 0:
+                    session = get_session(force_new=True)
+                    time.sleep(0.5)
+        
+        # Если нашли нормальную ссылку, прекращаем перебор
+        if stream_url and not stream_url.startswith("http:///ch/") and "://" in stream_url:
+            break
+
+    # Исправляем формат, если ссылка начинается с усеченного http:///
     if stream_url.startswith("http:///"):
         stream_url = stream_url.replace("http:///", f"{PORTAL_BASE}/")
     elif stream_url.startswith("/"):
         stream_url = f"{PORTAL_BASE}{stream_url}"
 
-    # Если портал ничего не вернул, пробуем очистить оригинальную команду
-    if not stream_url or "://" not in stream_url:
-        fallback_url = cmd
-        for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
-            if fallback_url.startswith(prefix):
-                fallback_url = fallback_url[len(prefix):].strip()       
-        if "://" in fallback_url:
-            stream_url = fallback_url
+    # Если портал не вернул ссылку через create_link, пробуем использовать чистый URL если он есть
+    if not stream_url or "://" not in stream_url or stream_url.startswith("http:///ch/"):
+        if "://" in clean_cmd and not clean_cmd.startswith("http:///ch/"):
+            stream_url = clean_cmd
 
-    # Добавляем СВЕЖИЙ токен сессии к ссылке медиасервера
+    # Добавляем свежий токен сессии к ссылке медиасервера
     if stream_url and "token=" not in stream_url:
         session_token = session.cookies.get("token")
         if session_token:
             separator = "&" if "?" in stream_url else "?"
             stream_url = f"{stream_url}{separator}token={session_token}"
 
-    if not stream_url:
-        return Response("Kanalni ochib bo'lmadi", status_code=500)
+    if not stream_url or stream_url.startswith("http:///ch/"):
+        return Response("Kanalni ochib bo'lmadi: медиасервер не вернул ссылку", status_code=500)
 
     return RedirectResponse(url=stream_url, status_code=302)
