@@ -98,8 +98,9 @@ def fetch_channels(session):
 def root_redirect():
     return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
 
-@app.get("/api/pl.m3u8", response_class=PlainTextResponse)
-@app.get("/api/playlist.m3u8", response_class=PlainTextResponse)
+# Убрали /api из путей, так как Vercel сам перенаправляет запросы из папки api/
+@app.get("/pl.m3u8", response_class=PlainTextResponse)
+@app.get("/playlist.m3u8", response_class=PlainTextResponse)
 def download_m3u8(request: Request, key: str = ""):
     headers = {"Content-Disposition": "attachment; filename=playlist.m3u8"}
     base_url = str(request.base_url).rstrip('/')
@@ -118,13 +119,13 @@ def download_m3u8(request: Request, key: str = ""):
     for index, ch in enumerate(channels):
         name = ch.get("name", "Kanal")
         cmd = ch.get("cmd", "")
-        stream_link = f"{base_url}/api/ch/{index}?key={SECRET_KEY}&cmd={requests.utils.quote(cmd)}"
+        stream_link = f"{base_url}/ch/{index}?key={SECRET_KEY}&cmd={requests.utils.quote(cmd)}"
         m3u_lines.append(f'#EXTINF:-1,{name}')
         m3u_lines.append(stream_link)
 
     return PlainTextResponse("\n".join(m3u_lines), headers=headers)
 
-@app.get("/api/ch/{index}")
+@app.get("/ch/{index}")
 def proxy_stream(index: int, cmd: str = "", key: str = ""):
     if key != SECRET_KEY or not cmd:
         return RedirectResponse(url="https://github.com/brawltop8599-boop/ads-stub/raw/refs/heads/main/v.mp4", status_code=302)
