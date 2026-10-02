@@ -57,6 +57,27 @@ def is_ip_banned(request: Request) -> bool:
         return True        
     return False
 
+def is_browser_request(request: Request) -> bool:
+    ua = request.headers.get("user-agent", "").lower()
+    if not ua:
+        return False
+    # Если это обычный браузер (chrome, safari, mozilla, edge, opera и т.д.) 
+    # и при этом не похоже на медиаплееры/ IPTV приложения
+    browser_keywords = ["mozilla", "chrome", "safari", "edge", "opera", "firefox", "androidwebkit"]
+    player_keywords = ["televizo", "iptv", "vlc", "kodi", "gst", "ffmpeg", "mag", "stb", "android"]
+    
+    # Проверим, есть ли явные признаки плеера
+    for pk in player_keywords:
+        if pk in ua:
+            # Если это обычный Android/Mozilla браузер телефона, но не Televizo/VLC
+            if "android" in ua and ("mobile" in ua or "wv" in ua or "chrome" in ua or "safari" in ua):
+                # Проверим дальше
+                pass
+            else:
+                return False
+
+    return any(bk in ua for bk in browser_keywords)
+
 app = FastAPI()
 
 status_data = {
@@ -258,7 +279,13 @@ def root_redirect(request: Request):
 
 @app.get("/playlist.json")
 def download_json(request: Request, key: str = ""):
-    if is_ip_banned(request) or key != SECRET_KEY:
+    if is_ip_banned(request):
+        return [{"name": "Reklama", "group": "Stub", "logo": "", "url": STUB_VIDEO_URL}]
+        
+    if is_browser_request(request):
+        return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
+
+    if key != SECRET_KEY:
         return [{"name": "Reklama", "group": "Stub", "logo": "", "url": STUB_VIDEO_URL}]
 
     base_url = str(request.base_url).rstrip('/')
@@ -279,7 +306,15 @@ def download_json(request: Request, key: str = ""):
 @app.get("/playlist.m3u8", response_class=PlainTextResponse)
 def download_m3u8(request: Request, key: str = ""):
     headers = {"Content-Disposition": "attachment; filename=playlist.m3u8"}    
-    if is_ip_banned(request) or key != SECRET_KEY:
+    
+    if is_ip_banned(request):
+        content = f"#EXTM3U\n#EXTINF:-1 tvg-name=\"Reklama\" group-title=\"Stub\",Reklama\n{STUB_VIDEO_URL}"
+        return PlainTextResponse(content, headers=headers)
+
+    if is_browser_request(request):
+        return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
+
+    if key != SECRET_KEY:
         content = f"#EXTM3U\n#EXTINF:-1 tvg-name=\"Reklama\" group-title=\"Stub\",Reklama\n{STUB_VIDEO_URL}"
         return PlainTextResponse(content, headers=headers)
 
@@ -299,33 +334,35 @@ def download_m3u8(request: Request, key: str = ""):
 
 @app.get("/play")
 def play_stream(cmd: str, request: Request, key: str = ""):
-    if is_ip_banned(request) or key != SECRET_KEY:
+    if is_ip_banned(request):
+        return RedirectResponse(url=STUB_VIDEO_URL, status_code=302)
+
+    if is_browser_request(request):
+        return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
+
+    if key != SECRET_KEY:
         return RedirectResponse(url=STUB_VIDEO_URL, status_code=302)
 
     session = get_session(force_new=True)
     stream_url = ""    
 
-    # Очищаем префиксы из команды
     clean_cmd = cmd
     for prefix in ["ffmpeg ", "ch:ffrt ", "ffrt ", "ch:"]:
         if clean_cmd.startswith(prefix):
             clean_cmd = clean_cmd[len(prefix):].strip()
 
-    # Извлекаем числовой ID из виртуальных путей типа http:///ch/1277
     channel_id = ""
     if "/ch/" in clean_cmd:
         parts = clean_cmd.split("/ch/")
         if len(parts) > 1:
             channel_id = parts[-1].strip()
 
-    # Формируем список вариантов для запроса к create_link (порталы бывают капризными к формату)
     cmds_to_try = [clean_cmd]
     if channel_id:
-        cmds_to_try.insert(0, channel_id)  # Пробуем чистый ID в первую очередь
+        cmds_to_try.insert(0, channel_id)  
         cmds_to_try.append(f"ch:{channel_id}")
         cmds_to_try.append(f"http:///ch/{channel_id}")
 
-    # Перебираем варианты, пока портал не отдаст реальный адрес потока
     for test_cmd in cmds_to_try:
         for attempt in range(2):
             try:
@@ -345,22 +382,18 @@ def play_stream(cmd: str, request: Request, key: str = ""):
                     session = get_session(force_new=True)
                     time.sleep(0.5)
         
-        # Если нашли нормальную ссылку, прекращаем перебор
         if stream_url and not stream_url.startswith("http:///ch/") and "://" in stream_url:
             break
 
-    # Исправляем формат, если ссылка начинается с усеченного http:///
     if stream_url.startswith("http:///"):
         stream_url = stream_url.replace("http:///", f"{PORTAL_BASE}/")
     elif stream_url.startswith("/"):
         stream_url = f"{PORTAL_BASE}{stream_url}"
 
-    # Если портал не вернул ссылку через create_link, пробуем использовать чистый URL если он есть
     if not stream_url or "://" not in stream_url or stream_url.startswith("http:///ch/"):
         if "://" in clean_cmd and not clean_cmd.startswith("http:///ch/"):
             stream_url = clean_cmd
 
-    # Добавляем свежий токен сессии к ссылке медиасервера
     if stream_url and "token=" not in stream_url:
         session_token = session.cookies.get("token")
         if session_token:
