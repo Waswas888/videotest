@@ -7,7 +7,6 @@ from urllib.parse import urlparse, quote, unquote
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 import requests
-
 PORTAL_BASE = "http://91.215.188.161"
 PORTAL_URL = f"{PORTAL_BASE}/stalker_portal/server/load.php"
 MAC_BASE = "00:1A:79:39:80:9C"
@@ -18,7 +17,6 @@ SECRET_KEY = "000"
 TELEGRAM_GROUP_URL = "https://t.me/+2lWVU6CKQsVkMWRi"  
 STUB_VIDEO_URL = "https://raw.githubusercontent.com/Waswas777/video2/refs/heads/main/playlist.m3u8"
 PORTAL_DOMAIN = urlparse(PORTAL_BASE).netloc
-
 BANNED_IPS = {        
         "5.253.66.62", "23.106.253.18", "23.106.249.56", "31.3.156.64", "38.180.180.126", "46.150.71.146", "91.214.82.125", "109.86.19.135", "217.12.223.190", "188.233.60.20",
         "91.195.172.249", "149.102.240.138", "91.194.168.20", "91.195.172.241", "91.195.172.240", "88.218.92.126", "46.150.71.235", "194.44.26.199", "130.0.235.254",
@@ -33,22 +31,14 @@ BANNED_IPS = {
         "2a00:1e98:f022:9877:c1ba:4b65:5e85:1c4f", "2a0d:6fc2:5db2:6600:b0b1:70c1:6721:ca58", "2a00:1e98:f2d5:e661:5a0f:182a:60ea:e4cd", 
         "2a02:6ea0:3100:2000:490a:2928:d5eb:e685"    
 }
-
 BANNED_PREFIXES = (
-    "2a09:bac5:", "2a02:3032:", "2a09:bac1:", "2a12:bec4:", "2a01:e5c0:", "2a02:2378:",
-    "2a02:4780:", "2001:49f0:", "2a14:a087:", "2001:4f8:", "2001:ac8:", "2a03:d000:",
-    "2001:16b8:", "2a0e:d604:", "2a06:98c0:", "2001:4f9:", "51.158.201.", "149.154.161.",
-    "94.158.58.", "81.19.141.", "93.152.224.", "80.66.72.", "91.92.33.", "5.255.",
-    "2a12:5940:", "45.45.", "104.204.", "161.129.", "174.136.203.", "104.28.",
-    "87.250.", "38.54.", "82.23.", "2a10:1fc0:", "2607:5300:", "141.11.",
-    "154.223.", "45.129.", "130.94.", "212.237.", "2001:41d0:", "82.25.",
-    "95.24.", "155.212.", "2a05:45c2:", "2a00:f502:", "2a01:73c0:", "2a0d:3341:",
-    "2001:1e98:", "2001:9e8:", "2a0d:6fc0:", "2409:40d1:", "144.31.141.", "213.180.",
-    "65.49.", "34.212.", "110.172.", "217.194.", "193.169.", "35.87.",
-    "176.3.", "176.123.", "78.56.", "185.146.", "95.85.", "212.57.",
-    "78.54.", "178.254.", "188.163.", "205.210.31."
+    "2a09:bac5:", "2a02:3032:", "2a09:bac1:", "2a12:bec4:", "2a01:e5c0:", "2a02:2378:", "2a02:4780:", "2001:49f0:", "2a14:a087:", "2a01:4f8:", "2001:ac8:", "2a03:d000:",
+    "2001:16b8:", "2a0e:d604:", "2a01:4f9:", "51.158.201.", "149.154.161.", "94.158.58.", "81.19.141.", "93.152.224.", "80.66.72.", "91.92.33.", "5.255.",
+    "2a12:5940:", "45.45.", "104.204.", "161.129.", "174.136.203.", "104.28.", "87.250.", "38.54.", "82.23.", "2a10:1fc0:", "2607:5300:", "141.11.",
+    "154.223.", "45.129.", "130.94.", "212.237.", "2001:41d0:", "82.25.", "79.137.", "85.198.", "95.24.", "155.212.", "2a05:45c2:", "2a00:f502:", "2a01:73c0:", "2a0d:3341:",
+    "2001:1e98:", "2001:9e8:", "2a0d:6fc0:", "2003:df:", "2409:40d1:", "144.31.141.", "213.180.", "65.49.", "34.212.", "110.172.", "217.194.", "193.169.", "35.87.",
+    "176.3.", "176.123.", "78.56.", "185.146.", "95.85.", "212.57.", "78.54.", "178.254.", "188.163.", "205.210.31."
 )
-
 def is_ip_banned(request: Request) -> bool:
     client_ip = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for")
     if not client_ip and request.client:
@@ -60,20 +50,20 @@ def is_ip_banned(request: Request) -> bool:
         return True        
     return False
 
-# --- БЛОК С БРАУЗЕРАМИ ЗАКОМЕНТИРОВАН НА ВРЕМЯ ---
-# def is_browser_request(request: Request) -> bool:
-#     ua = request.headers.get("user-agent", "").lower()
-#     if not ua:
-#         return False
-#     browser_keywords = ["mozilla", "chrome", "safari", "edge", "opera", "firefox", "androidwebkit"]
-#     player_keywords = ["televizo", "iptv", "vlc", "kodi", "gst", "ffmpeg", "mag", "stb", "android"]    
-#     for pk in player_keywords:
-#         if pk in ua:
-#             if "android" in ua and ("mobile" in ua or "wv" in ua or "chrome" in ua or "safari" in ua):
-#                 pass
-#             else:
-#                 return False
-#     return any(bk in ua for bk in browser_keywords)
+# Блокировка браузеров включена обратно
+def is_browser_request(request: Request) -> bool:
+    ua = request.headers.get("user-agent", "").lower()
+    if not ua:
+        return False
+    browser_keywords = ["mozilla", "chrome", "safari", "edge", "opera", "firefox", "androidwebkit"]
+    player_keywords = ["televizo", "iptv", "vlc", "kodi", "gst", "ffmpeg", "mag", "stb", "android"]    
+    for pk in player_keywords:
+        if pk in ua:
+            if "android" in ua and ("mobile" in ua or "wv" in ua or "chrome" in ua or "safari" in ua):
+                pass
+            else:
+                return False
+    return any(bk in ua for bk in browser_keywords)
 
 app = FastAPI()
 status_data = {
@@ -187,11 +177,10 @@ def fetch_channels_data(session):
     except Exception:
         pass
 
-    # Ограничиваем цикл по жанрам на Vercel, чтобы не упереться в таймаут
     if genres_map:
-        for gid in list(genres_map.keys())[:15]: # Берем первые 15 жанров для скорости
+        for gid in list(genres_map.keys())[:15]:
             page = 1
-            while page <= 2: # Ограничиваем пагинацию
+            while page <= 2:
                 sub_url = (
                     f"{PORTAL_URL}?type=itv&action=get_ordered_list"
                     f"&genre={gid}&sortby=number&order=asc&hd=0&fav=0&not_my_genres=0"
@@ -220,7 +209,6 @@ def fetch_channels_data(session):
 
 def get_or_create_playlist():
     global memory_playlist_cache, cache_time
-    # Кешируем в памяти на 1 час, чтобы Vercel не обращался к провайдеру IPTV при каждом запросе
     if memory_playlist_cache and (time.time() - cache_time < 3600):
         return memory_playlist_cache
 
@@ -265,8 +253,8 @@ def download_json(request: Request, key: str = ""):
     if is_ip_banned(request):
         return [{"name": "Reklama", "group": "Stub", "logo": "", "url": STUB_VIDEO_URL}]
         
-    # if is_browser_request(request):
-    #     return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
+    if is_browser_request(request):
+        return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
 
     if key != SECRET_KEY:
         return [{"name": "Reklama", "group": "Stub", "logo": "", "url": STUB_VIDEO_URL}]
@@ -294,8 +282,8 @@ def download_m3u8(request: Request, key: str = ""):
         content = f"#EXTM3U\n#EXTINF:-1 tvg-name=\"Reklama\" group-title=\"Stub\",Reklama\n{STUB_VIDEO_URL}"
         return PlainTextResponse(content, headers=headers)
 
-    # if is_browser_request(request):
-    #     return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
+    if is_browser_request(request):
+        return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
 
     if key != SECRET_KEY:
         content = f"#EXTM3U\n#EXTINF:-1 tvg-name=\"Reklama\" group-title=\"Stub\",Reklama\n{STUB_VIDEO_URL}"
@@ -320,8 +308,8 @@ def play_stream(cmd: str, request: Request, key: str = ""):
     if is_ip_banned(request):
         return RedirectResponse(url=STUB_VIDEO_URL, status_code=302)
 
-    # if is_browser_request(request):
-    #     return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
+    if is_browser_request(request):
+        return RedirectResponse(url=TELEGRAM_GROUP_URL, status_code=302)
 
     if key != SECRET_KEY:
         return RedirectResponse(url=STUB_VIDEO_URL, status_code=302)
